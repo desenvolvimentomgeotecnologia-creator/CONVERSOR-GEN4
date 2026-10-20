@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Unificador GEN4 – MGEO</title>
+<link rel="icon" href="logo.png">
+<meta name="description" content="Unifique dados GEN4 (MasterData.xml + SpatialFiles) direto no navegador.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,700;125,800&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --paper:#EEF2EA; --surface:#FFFFFF; --ink:#16241D; --muted:#5A6B61;
+  --field:#2C5B43; --field-ink:#FFFFFF; --furrow:#CAD6C4; --line:#DCE4D7;
+  --harvest:#D99A1E; --harvest-soft:#FBEFD3; --danger:#A23B2A; --console:#1B2A22; --console-ink:#D7E6D9;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#131D18; --surface:#1A2720; --ink:#E6EEE7; --muted:#9CB0A3;
+    --field:#4E9B72; --field-ink:#0E1712; --furrow:#2E4337; --line:#26372D;
+    --harvest:#E8B44A; --harvest-soft:#3A3020; --danger:#E07A66; --console:#0D1511; --console-ink:#C9DCCD;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#131D18; --surface:#1A2720; --ink:#E6EEE7; --muted:#9CB0A3;
+  --field:#4E9B72; --field-ink:#0E1712; --furrow:#2E4337; --line:#26372D;
+  --harvest:#E8B44A; --harvest-soft:#3A3020; --danger:#E07A66; --console:#0D1511; --console-ink:#C9DCCD;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 "Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px 48px}
+
+/* Hero with guidance-line field */
+.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+.hero svg.rows{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.hero svg.rows path{fill:none;stroke:var(--furrow);stroke-width:1.4}
+.hero svg.rows path.track{stroke:var(--harvest);stroke-width:2.4}
+.hero .wrap{position:relative;padding-top:40px;padding-bottom:40px}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.mark{display:grid;place-items:center;width:44px;height:44px;border-radius:10px;background:var(--field);color:var(--field-ink);font:800 13px/1 "Archivo",sans-serif;font-stretch:125%;letter-spacing:.02em}
+.logo{height:64px;width:auto;max-width:200px;object-fit:contain}
+.mark[hidden],.logo[hidden]{display:none}
+.brand span{font-weight:600;color:var(--muted);font-size:.95rem}
+h1{margin:0;font-family:"Archivo","Arial Black",sans-serif;font-weight:800;font-stretch:125%;font-size:clamp(2rem,6.4vw,3.6rem);line-height:.98;letter-spacing:-.01em;max-width:14ch}
+h1 small{display:block;margin-top:.25em;font-size:.42em;font-weight:700;font-stretch:112%;color:var(--field);letter-spacing:.01em}
+.lede{margin:18px 0 0;max-width:52ch;color:var(--muted)}
+
+/* Drop zone */
+section{margin-top:32px}
+h2{font-family:"Archivo",sans-serif;font-stretch:112%;font-weight:700;font-size:1.2rem;margin:0 0 12px}
+.drop{border:2px dashed var(--furrow);border-radius:14px;background:var(--surface);padding:28px 22px;text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--field);background:var(--harvest-soft)}
+.drop p{margin:0 0 16px}
+.drop .hint{margin:14px 0 0;font-size:.85rem;color:var(--muted)}
+.btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+button,.btn{font:600 .95rem/1 "Public Sans",sans-serif;border-radius:8px;padding:12px 16px;cursor:pointer;border:1px solid var(--furrow);background:var(--surface);color:var(--ink)}
+button:hover{border-color:var(--field)}
+button:focus-visible{outline:3px solid var(--harvest);outline-offset:2px}
+button.primary{background:var(--field);border-color:var(--field);color:var(--field-ink);font-family:"Archivo",sans-serif;font-stretch:112%;font-weight:700;font-size:1.05rem;padding:16px 24px}
+button.primary:hover{filter:brightness(1.08)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none}
+input[type=file]{display:none}
+
+/* Sets list */
+.sets{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.sets li{display:grid;grid-template-columns:1fr auto;gap:6px 16px;padding:14px 16px;border-top:1px solid var(--line)}
+.sets li:first-child{border-top:0}
+.sets li.master{background:var(--harvest-soft);box-shadow:inset 4px 0 0 var(--harvest)}
+.set-name{font-weight:600;word-break:break-word}
+.set-path{font-size:.8rem;color:var(--muted);word-break:break-all}
+.set-meta{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.88rem;color:var(--muted)}
+.set-meta b{color:var(--ink);font-weight:600}
+.set-actions{display:flex;gap:6px;align-items:start}
+.set-actions button{padding:7px 10px;font-size:.82rem}
+.tag{display:inline-block;font-size:.75rem;font-weight:600;padding:3px 8px;border-radius:99px;background:var(--harvest);color:#1d1606;margin-left:6px;vertical-align:2px}
+.warn{grid-column:1/-1;font-size:.85rem;color:var(--danger)}
+.empty{padding:22px 16px;color:var(--muted);text-align:center}
+
+.actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:20px}
+.progress{font-size:.9rem;color:var(--muted)}
+
+/* Console */
+.console{background:var(--console);color:var(--console-ink);border-radius:12px;padding:14px 16px;font:13px/1.6 "IBM Plex Mono",Consolas,monospace;height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.console .err{color:#F09A86}
+.console .ok{color:#9BE0B4}
+
+.summary{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);display:none}
+.summary.show{display:block}
+.summary dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:0}
+.summary dt{font-size:.82rem;color:var(--muted)}
+.summary dd{margin:0;font-family:"Archivo",sans-serif;font-stretch:112%;font-weight:700;font-size:1.5rem}
+
+footer{margin-top:40px;font-size:.85rem;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <svg class="rows" viewBox="0 0 800 300" preserveAspectRatio="none" aria-hidden="true" id="rows"></svg>
+  <div class="wrap">
+    <div class="brand"><img class="logo" src="logo.png" alt="MGEO" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><div class="mark" hidden>MGEO</div><span>Agricultura de precisão</span></div>
+    <h1>Unificador GEN4 <small>MGEO</small></h1>
+    <p class="lede">Junte os dados de várias pastas GEN4 (MasterData.xml + SpatialFiles) em um único conjunto, pronto para copiar no pen drive do monitor.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section>
+    <h2>Importar dados GEN4</h2>
+    <div class="drop" id="drop">
+      <p>Arraste aqui as pastas das fazendas ou os arquivos .zip exportados.</p>
+      <div class="btns">
+        <button type="button" id="pickFolder">Escolher pasta</button>
+        <button type="button" id="pickFiles">Escolher arquivos .zip ou XML</button>
+      </div>
+      <p class="hint">O processamento acontece no seu navegador. Nenhum arquivo é enviado para servidor.</p>
+      <input type="file" id="folderInput" webkitdirectory directory multiple>
+      <input type="file" id="fileInput" multiple accept=".zip,.xml,.gjson,.json">
+    </div>
+  </section>
+
+  <section>
+    <h2>Conjuntos encontrados</h2>
+    <ul class="sets" id="sets"><li class="empty">Nenhum MasterData.xml importado ainda.</li></ul>
+    <div class="actions">
+      <button type="button" class="primary" id="run" disabled>Unificar e baixar</button>
+      <button type="button" id="clear" disabled>Limpar tudo</button>
+      <span class="progress" id="progress" aria-live="polite"></span>
+    </div>
+    <div class="summary" id="summary"></div>
+  </section>
+
+  <section>
+    <h2>Status</h2>
+    <div class="console" id="log" role="log" aria-live="polite"></div>
+  </section>
+
+  <footer>Desenvolvido por: Lucas Benati – Versão 1.0 Web</footer>
+</main>
+
+<script>
+// ===== Lógica de unificação (porta fiel do Unificador.py) =====
+const JD_NS = 'urn:schemas-johndeere-com:Setup';
+
+function elKids(el){ const out=[]; for(let n=el.firstChild;n;n=n.nextSibling) if(n.nodeType===1) out.push(n); return out; }
+function kids(el,name){ return elKids(el).filter(c=>c.localName===name); }
+function kid(el,name){ return kids(el,name)[0]||null; }
+
+function parseXml(text){
+  const doc = new DOMParser().parseFromString(text,'application/xml');
+  if (doc.getElementsByTagName('parsererror').length || !doc.documentElement) throw new Error('XML inválido');
+  return doc;
+}
+function getSetup(doc){
+  const r = doc.documentElement;
+  if (r.localName==='Setup') return r;
+  const s = kid(r,'Setup');
+  if (!s) throw new Error('nó <Setup> não encontrado');
+  return s;
+}
+function getTracks(setup){ const g=kid(setup,'Guidance'); return g?kid(g,'Tracks'):null; }
+
+function inspectXml(text){
+  const setup = getSetup(parseXml(text));
+  const client = kid(setup,'Client');
+  const tracks = getTracks(setup);
+  return {
+    clientName: client ? (client.getAttribute('Name')||'(sem nome)') : null,
+    clientId: client ? client.getAttribute('StringGuid') : null,
+    farms: kids(setup,'Farm').length,
+    fields: kids(setup,'Field').length,
+    curves: tracks ? kids(tracks,'AdaptiveCurve').length : 0
+  };
+}
+
+/**
+ * sets: [{label, xmlText, spatial:[names]}] já na ordem (o primeiro bem-sucedido vira o principal)
+ * Retorna {xml, used:[indices], stats}
+ */
+function unifySets(sets, log){
+  let masterDoc=null, mSetup=null, clientId=null;
+  const used=[]; const st={farms:0,fields:0,curves:0,dupFarms:0,dupFields:0,dupCurves:0,skippedCurves:0};
+  sets.forEach((s,i)=>{
+    try{
+      const doc = parseXml(s.xmlText);
+      const setup = getSetup(doc);
+      if (!masterDoc){
+        const client = kid(setup,'Client');
+        if (!client) throw new Error('nó <Client> não encontrado');
+        masterDoc=doc; mSetup=setup; clientId=client.getAttribute('StringGuid');
+        st.farms=kids(setup,'Farm').length; st.fields=kids(setup,'Field').length;
+        const t=getTracks(setup); st.curves=t?kids(t,'AdaptiveCurve').length:0;
+        log(`Cliente detectado: ${client.getAttribute('Name')}`);
+      } else {
+        const has=(parent,name,guid)=> guid!=null && kids(parent,name).some(e=>e.getAttribute('StringGuid')===guid);
+        // Fazendas: corrige o ID do cliente e insere na posição 2 do Setup
+        for (const farm of kids(setup,'Farm')){
+          farm.setAttribute('Client', clientId);
+          if (has(mSetup,'Farm',farm.getAttribute('StringGuid'))){ st.dupFarms++; continue; }
+          const ref = elKids(mSetup)[2] || null;
+          mSetup.insertBefore(masterDoc.importNode(farm,true), ref);
+          st.farms++;
+        }
+        // Talhões
+        for (const field of kids(setup,'Field')){
+          if (has(mSetup,'Field',field.getAttribute('StringGuid'))){ st.dupFields++; continue; }
+          mSetup.appendChild(masterDoc.importNode(field,true));
+          st.fields++;
+        }
+        // Linhas de guia (AdaptiveCurve)
+        const mT=getTracks(mSetup), cT=getTracks(setup);
+        if (cT){
+          const curves=kids(cT,'AdaptiveCurve');
+          if (mT){
+            for (const c of curves){
+              if (has(mT,'AdaptiveCurve',c.getAttribute('StringGuid'))){ st.dupCurves++; continue; }
+              mT.appendChild(masterDoc.importNode(c,true)); st.curves++;
+            }
+          } else if (curves.length){
+            st.skippedCurves+=curves.length;
+            log(`Aviso: o conjunto principal não tem Guidance/Tracks; ${curves.length} linha(s) de “${s.label}” não foram incluídas.`,'err');
+          }
+        }
+      }
+      used.push(i);
+      log(`Integrado: ${s.label}`,'ok');
+    }catch(e){
+      log(`Erro ao ler ${s.path||s.label}: ${e.message}`,'err');
+    }
+  });
+  if (!masterDoc) return null;
+  let xml = new XMLSerializer().serializeToString(masterDoc).replace(/^\s*<\?xml[^>]*\?>\s*/,'');
+  xml = '<?xml version="1.0" encoding="utf-8"?>\n' + xml;
+  return {xml, used, stats:st};
+}
+
+// ===== Sistema de arquivos virtual =====
+const vfs = new Map(); // path -> {read: ()=>Promise<Uint8Array>, size}
+let sets = [];         // [{path, dir, label, xmlText, info, spatial:[{name,path}], error}]
+let masterPath = null;
+
+const $ = id => document.getElementById(id);
+const logEl = $('log');
+function log(msg, cls){
+  const line=document.createElement('div');
+  if (cls) line.className=cls;
+  line.textContent='> '+msg;
+  logEl.appendChild(line); logEl.scrollTop=logEl.scrollHeight;
+}
+log('Aguardando importação dos dados GEN4…');
+
+const norm = p => p.replace(/\\/g,'/').replace(/^\/+/,'');
+const baseName = p => p.split('/').pop();
+
+async function addFile(path, file){
+  path = norm(path);
+  if (/\.zip$/i.test(path)) return addZip(path, file);
+  vfs.set(path, {read: async()=>new Uint8Array(await file.arrayBuffer()), size:file.size});
+}
+async function addZip(path, blob){
+  if (typeof JSZip==='undefined'){ log('Não foi possível carregar o leitor de .zip.','err'); return; }
+  try{
+    const zip = await JSZip.loadAsync(blob);
+    const prefix = path.replace(/\.zip$/i,'');
+    let n=0;
+    zip.forEach((rel, entry)=>{
+      if (entry.dir) return;
+      const p = norm(prefix+'/'+rel);
+      if (/\.zip$/i.test(p)) { pendingNested.push({p, entry}); return; }
+      vfs.set(p, {read:()=>entry.async('uint8array'), size: entry._data && entry._data.uncompressedSize || 0});
+      n++;
+    });
+    log(`ZIP aberto: ${baseName(path)} (${n} arquivos)`);
+  }catch(e){ log(`Erro ao abrir ${baseName(path)}: ${e.message}`,'err'); }
+}
+let pendingNested=[];
+async function flushNested(){
+  while (pendingNested.length){
+    const {p, entry} = pendingNested.shift();
+    await addZip(p, await entry.async('blob'));
+  }
+}
+
+async function readEntryTree(entry, out){
+  if (entry.isFile){
+    await new Promise(res=>entry.file(f=>{ out.push({path:entry.fullPath, file:f}); res(); }, ()=>res()));
+  } else if (entry.isDirectory){
+    const reader = entry.createReader();
+    let batch;
+    do {
+      batch = await new Promise(res=>reader.readEntries(res, ()=>res([])));
+      for (const e of batch) await readEntryTree(e, out);
+    } while (batch.length);
+  }
+}
+
+async function ingest(items){
+  setBusy(true,'Lendo arquivos…');
+  for (const {path,file} of items) await addFile(path,file);
+  await flushNested();
+  await rescan();
+  setBusy(false);
+}
+
+async function rescan(){
+  const dec = new TextDecoder('utf-8');
+  const paths=[...vfs.keys()];
+  const masters = paths.filter(p=>{
+    if (baseName(p).toLowerCase()!=='masterdata.xml') return false;
+    const dir=p.slice(0,-baseName(p).length);
+    return !dir.includes('UNIFICADO');
+  }).sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true}));
+
+  const prev = new Map(sets.map(s=>[s.path,s]));
+  const next=[];
+  for (const p of masters){
+    if (prev.has(p)) { next.push(prev.get(p)); continue; }
+    const dir = p.slice(0,-baseName(p).length);
+    const segs = dir.split('/').filter(Boolean);
+    const label = segs.length>=2 ? segs[segs.length-2] : (segs[0]||'raiz');
+    const spDir = (dir+'SpatialFiles/').toLowerCase();
+    const spatial = paths.filter(q=>{ const l=q.toLowerCase(); return l.startsWith(spDir) && !l.slice(spDir.length).includes('/'); })
+                         .map(q=>({name:baseName(q), path:q}));
+    const s={path:p, dir, label, spatial, xmlText:null, info:null, error:null};
+    try{
+      s.xmlText = dec.decode(await vfs.get(p).read()).replace(/^\uFEFF/,'');
+      s.info = inspectXml(s.xmlText);
+    }catch(e){ s.error=e.message; }
+    next.push(s);
+    log(`Encontrado: ${label}${s.error?' (com erro)':''}`, s.error?'err':undefined);
+  }
+  sets=next;
+  if (!sets.some(s=>s.path===masterPath)) masterPath = (sets.find(s=>!s.error)||sets[0]||{}).path || null;
+  render();
+}
+
+function orderedSets(){
+  const m = sets.find(s=>s.path===masterPath);
+  return m ? [m, ...sets.filter(s=>s!==m)] : sets.slice();
+}
+
+function render(){
+  const ul=$('sets'); ul.innerHTML='';
+  if (!sets.length){
+    ul.innerHTML='<li class="empty">Nenhum MasterData.xml importado ainda.</li>';
+  }
+  const master = sets.find(s=>s.path===masterPath);
+  for (const s of orderedSets()){
+    const li=document.createElement('li');
+    const isM = s===master;
+    if (isM) li.classList.add('master');
+    const info=document.createElement('div');
+    const name=document.createElement('div'); name.className='set-name'; name.textContent=s.label;
+    if (isM){ const t=document.createElement('span'); t.className='tag'; t.textContent='Principal'; name.appendChild(t); }
+    const path=document.createElement('div'); path.className='set-path'; path.textContent=s.path;
+    info.append(name,path);
+
+    const act=document.createElement('div'); act.className='set-actions';
+    if (!isM && !s.error){
+      const b=document.createElement('button'); b.type='button'; b.textContent='Tornar principal';
+      b.onclick=()=>{ masterPath=s.path; log(`Principal definido: ${s.label}`); render(); };
+      act.appendChild(b);
+    }
+    const rm=document.createElement('button'); rm.type='button'; rm.textContent='Remover'; rm.setAttribute('aria-label','Remover '+s.label);
+    rm.onclick=()=>{ for (const k of [...vfs.keys()]) if (k.startsWith(s.dir)) vfs.delete(k); sets=sets.filter(x=>x!==s); if(masterPath===s.path) masterPath=null; rescan(); };
+    act.appendChild(rm);
+
+    const meta=document.createElement('div'); meta.className='set-meta';
+    if (s.info){
+      meta.innerHTML='';
+      [['Cliente',s.info.clientName||'—'],['Fazendas',s.info.farms],['Talhões',s.info.fields],['Linhas',s.info.curves],['Arquivos espaciais',s.spatial.length]]
+        .forEach(([k,v])=>{ const sp=document.createElement('span'); sp.append(k+': '); const b=document.createElement('b'); b.textContent=v; sp.appendChild(b); meta.appendChild(sp); });
+    }
+    li.append(info,act,meta);
+    if (s.error){ const w=document.createElement('div'); w.className='warn'; w.textContent='Não foi possível ler este MasterData.xml: '+s.error; li.appendChild(w); }
+    else if (master && master.info && s!==master && s.info.clientId && s.info.clientId!==master.info.clientId){
+      const w=document.createElement('div'); w.className='warn';
+      w.textContent=`Cliente diferente do principal: as fazendas serão atribuídas a “${master.info.clientName}”.`;
+      li.appendChild(w);
+    }
+    ul.appendChild(li);
+  }
+  $('run').disabled = !sets.some(s=>!s.error);
+  $('clear').disabled = !vfs.size;
+}
+
+function setBusy(b,msg){
+  $('progress').textContent = b ? (msg||'') : '';
+  $('run').disabled = b || !sets.some(s=>!s.error);
+  $('pickFolder').disabled = $('pickFiles').disabled = b;
+}
+
+async function run(){
+  const list = orderedSets().filter(s=>!s.error);
+  if (!list.length) return;
+  $('summary').classList.remove('show');
+  setBusy(true,'Unificando…');
+  log('Iniciando varredura de dados...');
+  const res = unifySets(list.map(s=>({label:s.label, path:s.path, xmlText:s.xmlText})), log);
+  if (!res){ log('Nenhum MasterData.xml válido foi encontrado.','err'); setBusy(false); return; }
+
+  const zip = new JSZip();
+  const gen4 = zip.folder('Gen4');
+  gen4.file('MasterData.xml', res.xml);
+  const sp = gen4.folder('SpatialFiles');
+  const seen=new Set(); let overwritten=0, copied=0;
+  for (const i of res.used){
+    for (const f of list[i].spatial){
+      if (seen.has(f.name)) overwritten++;
+      seen.add(f.name);
+      sp.file(f.name, await vfs.get(f.path).read());
+      copied++;
+    }
+  }
+  if (overwritten) log(`${overwritten} arquivo(s) espacial(is) com nome repetido foram substituídos (mesmo comportamento do programa original).`);
+  log(`Arquivos espaciais copiados: ${seen.size}`);
+
+  const blob = await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}},
+    m=>{ $('progress').textContent=`Gerando arquivo… ${Math.round(m.percent)}%`; });
+
+  log('--- PROCESSO CONCLUÍDO COM SUCESSO ---','ok');
+  const st=res.stats;
+  $('summary').innerHTML='';
+  const dl=document.createElement('dl');
+  [['Conjuntos unificados',res.used.length],['Fazendas',st.farms],['Talhões',st.fields],['Linhas de guia',st.curves],['Arquivos espaciais',seen.size]]
+    .forEach(([k,v])=>{ const d=document.createElement('div'); const dt=document.createElement('dt'); dt.textContent=k; const dd=document.createElement('dd'); dd.textContent=v; d.append(dt,dd); dl.appendChild(d); });
+  const p=document.createElement('p'); p.style.margin='14px 0 0'; p.style.fontSize='.9rem'; p.style.color='var(--muted)';
+  p.textContent='Extraia o .zip e copie a pasta Gen4 para a raiz do pen drive.';
+  $('summary').append(dl,p); $('summary').classList.add('show');
+
+  await offerDownload(blob, 'UNIFICADO_GEN4_MGEO.zip');
+  setBusy(false);
+}
+
+function offerDownload(blob, filename){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 60000);
+  log(`Download iniciado: ${filename}`,'ok');
+}
+
+// ===== Eventos =====
+$('pickFolder').onclick=()=>$('folderInput').click();
+$('pickFiles').onclick=()=>$('fileInput').click();
+$('folderInput').onchange=e=>{ const fs=[...e.target.files]; e.target.value=''; ingest(fs.map(f=>({path:f.webkitRelativePath||f.name, file:f}))); };
+$('fileInput').onchange=e=>{ const fs=[...e.target.files]; e.target.value=''; ingest(fs.map(f=>({path:f.name, file:f}))); };
+$('run').onclick=run;
+$('clear').onclick=()=>{ vfs.clear(); sets=[]; masterPath=null; $('summary').classList.remove('show'); logEl.innerHTML=''; log('Aguardando importação dos dados GEN4…'); render(); };
+
+const drop=$('drop');
+['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{ e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{ e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', async e=>{
+  const items=[...(e.dataTransfer.items||[])];
+  const out=[];
+  const entries=items.map(i=>i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (entries.length){ for (const en of entries) await readEntryTree(en,out); }
+  else for (const f of e.dataTransfer.files) out.push({path:f.name,file:f});
+  ingest(out);
+});
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>e.preventDefault());
+
+// ===== Linhas de guia decorativas no topo =====
+(function(){
+  const svg=$('rows'); const NS='http://www.w3.org/2000/svg';
+  for (let i=-6;i<22;i++){
+    const y=i*18, p=document.createElementNS(NS,'path');
+    p.setAttribute('d',`M -20 ${y+120} C 220 ${y+40}, 420 ${y+200}, 820 ${y+60}`);
+    if (i===9) p.setAttribute('class','track');
+    p.setAttribute('opacity', i===9 ? '1' : String(0.35+0.4*Math.max(0,1-Math.abs(i-9)/12)));
+    svg.appendChild(p);
+  }
+})();
+</script>
+</body>
+</html>
